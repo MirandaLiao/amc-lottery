@@ -163,9 +163,11 @@
                         });
                         prizesRef.set(newPrizes).then(() => {
                             statusEl.textContent = '系統已就緒，歡迎抽獎！';
+                            resetToInitialState(); // 初始化按鈕狀態
                         });
                     } else {
                         statusEl.textContent = '系統已就緒，歡迎抽獎！';
+                        resetToInitialState(); // 初始化按鈕狀態
                     }
                 });
             })
@@ -175,7 +177,7 @@
             });
     };
 
-    // 即時監聽獎品剩餘數量（用來判斷是否還有獎可抽）
+    // 即時監聽獎品剩餘數量
     prizesRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -188,35 +190,45 @@
         } else {
             prizes = [];
         }
-        updateDrawButton();
+        updateButtonState();
     });
 
-    function updateDrawButton() {
+    // 統一更新按鈕與畫面狀態
+    function updateButtonState() {
         const canDraw = prizes.some(p => p.remain > 0);
-        drawBtn.disabled = !canDraw;
-        if (!canDraw && prizes.length > 0) {
-            resultEl.textContent = '本輪獎品已全部抽完！';
+
+        if (canDraw) {
+            drawBtn.textContent = '開始抽獎！';
+            drawBtn.disabled = false;
+            drawBtn.onclick = startDraw;
+        } else if (prizes.length > 0) {
             drawBtn.textContent = '獎品已抽完';
+            drawBtn.disabled = true;
         }
     }
 
-    // 開始抽獎：顯示動畫 3 秒後顯示結果
+    // 回到初始抽獎畫面（清除結果與動畫）
+    function resetToInitialState() {
+        resultEl.textContent = '';
+        animationEl.innerHTML = '';
+        updateButtonState();
+    }
+
+    // 開始抽獎
     function startDraw() {
         if (prizes.filter(p => p.remain > 0).length === 0) return;
 
-        // 顯示抽獎中狀態
         drawBtn.disabled = true;
         drawBtn.textContent = '抽獎中…';
         resultEl.textContent = '';
         animationEl.innerHTML = '<div class="spinner"></div>';
 
-        // 模擬抽獎時間（3秒）
         setTimeout(() => {
             performDraw();
-        }, 3000);
+        }, 2000); // 動畫持續 2 秒
     }
 
-    // 實際執行抽獎邏輯
+    // 執行抽獎並顯示結果
     function performDraw() {
         const available = prizes.filter(p => p.remain > 0);
         const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
@@ -234,11 +246,14 @@
         // 更新資料庫
         db.ref('prizes/' + selected.id + '/remain').set(selected.remain - 1);
 
-        // 顯示結果
+        // 顯示中獎結果 + 回到抽獎畫面的按鈕
         animationEl.innerHTML = '';
-        resultEl.textContent = `🎉 恭喜抽中：${selected.name} 🎉`;
-        drawBtn.textContent = '再抽一次！';
-        drawBtn.disabled = false;
+        resultEl.innerHTML = `
+            <div>🎉 恭喜抽中：<br><strong style="font-size:42px;">${selected.name}</strong> 🎉</div>
+            <button onclick="resetToInitialState()" style="margin-top:30px; padding:15px 30px; font-size:24px; background:#27ae60; color:white; border:none; border-radius:10px; cursor:pointer;">
+                回到抽獎畫面
+            </button>
+        `;
     }
 </script>
 </body>
