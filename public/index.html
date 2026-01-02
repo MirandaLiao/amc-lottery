@@ -13,7 +13,7 @@
         background: #f0f8ff;
         color: #333;
         text-align: center;
-        position: relative; /* 用於定位右上角按鈕 */
+        position: relative;
     }
     h1 {
         color: #2c3e50;
@@ -98,10 +98,11 @@
 <body>
     <h1>好禮即時抽</h1>
 
-    <!-- 右上角重置按鈕 -->
+    <!-- 右上角管理員重置按鈕 -->
     <button id="resetBtn" title="管理員專用：重置獎品數量">🔄</button>
 
     <div class="section">
+        <!-- 主抽獎按鈕（初始顯示，抽中後隱藏） -->
         <button id="drawBtn" onclick="startDraw()">開始抽獎！</button>
 
         <!-- 抽獎過程與結果顯示區 -->
@@ -138,7 +139,7 @@
     const animationEl = document.getElementById('animation');
     const resultEl = document.getElementById('result');
 
-    // 頁面載入時自動讀取 gifts.xlsx 並初始化資料庫（原有邏輯保留）
+    // 頁面載入時自動讀取 gifts.xlsx 並初始化資料庫
     window.onload = function() {
         loadAndInitPrizes();
     };
@@ -169,11 +170,9 @@
                 }
 
                 if (forceReset) {
-                    // 強制重置：直接覆蓋資料庫
                     statusEl.textContent = '正在強制重置獎品資料...';
                     writePrizesToDB(excelPrizes);
                 } else {
-                    // 正常初始化：比對是否需要更新
                     prizesRef.once('value').then(snapshot => {
                         const currentData = snapshot.val();
                         let needUpdate = false;
@@ -207,7 +206,7 @@
             });
     }
 
-    // 將獎品寫入資料庫（共用）
+    // 將獎品寫入資料庫
     function writePrizesToDB(excelPrizes) {
         const newPrizes = {};
         excelPrizes.forEach(p => {
@@ -233,12 +232,17 @@
         } else {
             prizes = [];
         }
-        updateButtonState();
+        // 只在初始狀態時更新按鈕（結果頁面不顯示主按鈕）
+        if (resultEl.innerHTML === '' && animationEl.innerHTML === '') {
+            updateButtonState();
+        }
     });
 
-    // 統一更新按鈕與畫面狀態
+    // 更新主抽獎按鈕狀態（僅在初始畫面時呼叫）
     function updateButtonState() {
         const canDraw = prizes.some(p => p.remain > 0);
+
+        drawBtn.style.display = 'block'; // 確保顯示
 
         if (canDraw) {
             drawBtn.textContent = '開始抽獎！';
@@ -247,6 +251,7 @@
         } else if (prizes.length > 0) {
             drawBtn.textContent = '獎品已抽完';
             drawBtn.disabled = true;
+            drawBtn.onclick = null;
         }
     }
 
@@ -254,14 +259,14 @@
     function resetToInitialState() {
         resultEl.innerHTML = '';
         animationEl.innerHTML = '';
-        updateButtonState();
+        updateButtonState(); // 重新顯示並更新主按鈕
     }
 
     // 開始抽獎
     function startDraw() {
         if (prizes.filter(p => p.remain > 0).length === 0) return;
 
-        drawBtn.disabled = true;
+        drawBtn.style.display = 'none'; // 隱藏主按鈕
         drawBtn.textContent = '抽獎中…';
         resultEl.textContent = '';
         animationEl.innerHTML = '<div class="spinner"></div>';
@@ -271,7 +276,7 @@
         }, 2000);
     }
 
-    // 執行抽獎並顯示結果
+    // 執行抽獎並顯示結果（此時主按鈕已隱藏）
     function performDraw() {
         const available = prizes.filter(p => p.remain > 0);
         const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
@@ -297,11 +302,11 @@
         `;
     }
 
-    // === 新增：右上角重置按鈕功能 ===
+    // 右上角重置按鈕功能
     document.getElementById('resetBtn').addEventListener('click', () => {
-        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為 xlsx 中的初始值嗎？\n這會清除目前所有抽獎進度！')) {
+        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為 gifts.xlsx 中的初始值嗎？\n這會清除目前所有抽獎進度！')) {
             statusEl.textContent = '正在強制重置獎品資料...';
-            loadAndInitPrizes(true); // forceReset = true
+            loadAndInitPrizes(true);
             alert('獎品已成功重置！所有參與者重新整理頁面後即生效。');
         }
     });
