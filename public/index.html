@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>自動抽獎系統</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f0f8ff; color: #333; }
+    h1 { text-align: center; color: #2c3e50; }
+    .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+    th { background: #ecf0f1; }
+    button { padding: 12px 24px; font-size: 18px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #c0392b; }
+    button:disabled { background: #95a5a6; cursor: not-allowed; }
+    #drawBtn { width: 100%; padding: 20px; font-size: 28px; margin-top: 20px; }
+    #result { font-size: 36px; text-align: center; margin: 40px 0; min-height: 80px; color: #27ae60; font-weight: bold; }
+    #status { text-align: center; color: #7f8c8d; font-style: italic; }
+</style>
+</head>
+<body>
+    <h1>好禮即時抽</h1>
+
+    <div class="section">
+        <h2>禮品資訊</h2>
+        <div id="status">正在載入獎品資料...</div>
+        <table id="prizeTable">
+            <thead><tr><th>禮品名稱</th><th>初始</th><th>剩餘</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section" style="text-align:center;">
+        <button id="drawBtn" onclick="draw()" disabled>開始抽獎！</button>
+        <div id="result"></div>
+    </div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<!-- SheetJS for Excel reading -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+    // ===== 請確認這裡是你的 firebaseConfig =====
+    const firebaseConfig = {
+      apiKey: "你的 apiKey",
+      authDomain: "amc-lottery.firebaseapp.com",
+      databaseURL: "https://amc-lottery-default-rtdb.firebaseio.com",
+      projectId: "amc-lottery",
+      storageBucket: "amc-lottery.appspot.com",
+      messagingSenderId: "你的 messagingSenderId",
+      appId: "你的 appId"
+    };
+    // ========================================
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const prizesRef = db.ref('prizes');
+
+    let prizes = [];
+
+    // 狀態顯示
+    const statusEl = document.getElementById('status');
+
+    // 頁面載入時自動讀取 gifts.xlsx
+    window.onload = function() {
+        fetch('gifts.xlsx')
+            .then(response => {
+                if (!response.ok) throw new Error('找不到 gifts.xlsx');
+                return response.arrayBuffer();
+            })
+            .then(data => {
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                // 從第二列開始讀取（假設第一列是標題）
+                const excelPrizes = json.slice(1)
+                    .filter(row => row[0] && row[1] > 0)
+                    .map(row => ({
+                        name: row[0].toString().trim(),
+                        total: parseInt(row[1]) || 0,
+                        remain: parseInt(row[1]) || 0
+                    }));
+
+                if (excelPrizes.length === 0) {
+                    statusEl.textContent = '錯誤：gifts.xlsx 中沒有有效獎品資料';
+                    return;
+                }
+
+                // 檢查資料庫是否已有相同獎品（用名稱+數量比對）
+                prizesRef.once('value').then(snapshot => {
+                    const currentData = snapshot.val();
+                    let needUpdate = false;
+
+                    if (!currentData || Object.keys(currentData).length !== excelPrizes.length) {
+                        needUpdate = true;
+                    } else {
+                        const currentPrizes = Object.values(currentData);
+                        for (let i = 0; i < excelPrizes.length; i++) {
+                            if (currentPrizes[i].name !== excelPrizes[i].name ||
+                                currentPrizes[i].total !== excelPrizes[i].total) {
+                                needUpdate = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (needUpdate) {
+                        statusEl.textContent = '偵測到獎品變更，正在自動更新資料庫...';
+                        // 清空並重新寫入
+                        const newPrizes = {};
+                        excelPrizes.forEach(p => {
+                            const key = prizesRef.push().key;
+                            newPrizes[key] = {
+                                name: p.name,
+                                total: p.total,
+                                remain: p.remain
+                            };
+                        });
+                        prizesRef.set(newPrizes).then(() => {
+                            statusEl.textContent = '獎品已自動載入並更新完成！';
+                        });
+                    } else {
+                        statusEl.textContent = '獎品資料已載入（無需更新）';
+                    }
+                });
+            })
+            .catch(err => {
+                statusEl.textContent = '錯誤：' + err.message + '（請確認 public 資料夾內有 gifts.xlsx）';
+                console.error(err);
+            });
+    };
+
+    // 監聽資料庫即時更新
+    prizesRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            prizes = Object.keys(data).map(key => ({
+                id: key,
+                name: data[key].name,
+                total: data[key].total,
+                remain: data[key].remain
+            }));
+        } else {
+            prizes = [];
+        }
+        renderTable();
+        updateDrawButton();
+    });
+
+    function renderTable() {
+        const tbody = document.querySelector('#prizeTable tbody');
+        tbody.innerHTML = '';
+        if (prizes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#95a5a6;">尚未載入獎品</td></tr>';
+            return;
+        }
+        prizes.forEach(p => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${p.name}</td>
+                <td>${p.total}</td>
+                <td>${p.remain} ${p.remain === 0 ? '<span style="color:#e74c3c;">(已抽完)</span>' : ''}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function updateDrawButton() {
+        const canDraw = prizes.some(p => p.remain > 0);
+        document.getElementById('drawBtn').disabled = !canDraw;
+        if (!canDraw && prizes.length > 0) {
+            document.getElementById('result').textContent = '獎品已全部抽完！';
+        }
+    }
+
+    // 抽獎
+    function draw() {
+        const available = prizes.filter(p => p.remain > 0);
+        if (available.length === 0) return;
+
+        const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
+        let random = Math.random() * totalRemain;
+        let selected;
+        for (const item of available) {
+            random -= item.remain;
+            if (random <= 0) {
+                selected = item;
+                break;
+            }
+        }
+
+        db.ref('prizes/' + selected.id + '/remain').set(selected.remain - 1);
+        document.getElementById('result').textContent = `🎉 恭喜抽中：${selected.name} 🎉`;
+    }
+</script>
+</body>
+</html>
