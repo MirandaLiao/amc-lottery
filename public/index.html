@@ -13,6 +13,7 @@
         background: #f0f8ff;
         color: #333;
         text-align: center;
+        position: relative; /* 用於定位右上角按鈕 */
     }
     h1 {
         color: #2c3e50;
@@ -70,10 +71,35 @@
         font-style: italic;
         margin-top: 20px;
     }
+
+    /* 右上角重置按鈕 */
+    #resetBtn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        background: #e74c3c;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        z-index: 1000;
+        transition: all 0.3s;
+    }
+    #resetBtn:hover {
+        background: #c0392b;
+        transform: scale(1.1);
+    }
 </style>
 </head>
 <body>
     <h1>好禮即時抽</h1>
+
+    <!-- 右上角重置按鈕 -->
+    <button id="resetBtn" title="管理員專用：重置獎品數量">🔄</button>
 
     <div class="section">
         <button id="drawBtn" onclick="startDraw()">開始抽獎！</button>
@@ -112,8 +138,13 @@
     const animationEl = document.getElementById('animation');
     const resultEl = document.getElementById('result');
 
-    // 頁面載入時自動讀取 gifts.xlsx 並初始化資料庫
+    // 頁面載入時自動讀取 gifts.xlsx 並初始化資料庫（原有邏輯保留）
     window.onload = function() {
+        loadAndInitPrizes();
+    };
+
+    // 共用函數：讀取 gifts.xlsx 並根據需要初始化/重置資料庫
+    function loadAndInitPrizes(forceReset = false) {
         fetch('gifts.xlsx')
             .then(response => {
                 if (!response.ok) throw new Error('找不到 gifts.xlsx');
@@ -137,45 +168,57 @@
                     return;
                 }
 
-                prizesRef.once('value').then(snapshot => {
-                    const currentData = snapshot.val();
-                    let needUpdate = false;
+                if (forceReset) {
+                    // 強制重置：直接覆蓋資料庫
+                    statusEl.textContent = '正在強制重置獎品資料...';
+                    writePrizesToDB(excelPrizes);
+                } else {
+                    // 正常初始化：比對是否需要更新
+                    prizesRef.once('value').then(snapshot => {
+                        const currentData = snapshot.val();
+                        let needUpdate = false;
 
-                    if (!currentData || Object.keys(currentData).length !== excelPrizes.length) {
-                        needUpdate = true;
-                    } else {
-                        const currentPrizes = Object.values(currentData);
-                        for (let i = 0; i < excelPrizes.length; i++) {
-                            if (currentPrizes[i].name !== excelPrizes[i].name ||
-                                currentPrizes[i].total !== excelPrizes[i].total) {
-                                needUpdate = true;
-                                break;
+                        if (!currentData || Object.keys(currentData).length !== excelPrizes.length) {
+                            needUpdate = true;
+                        } else {
+                            const currentPrizes = Object.values(currentData);
+                            for (let i = 0; i < excelPrizes.length; i++) {
+                                if (currentPrizes[i].name !== excelPrizes[i].name ||
+                                    currentPrizes[i].total !== excelPrizes[i].total) {
+                                    needUpdate = true;
+                                    break;
+                                }
                             }
                         }
-                    }
 
-                    if (needUpdate) {
-                        statusEl.textContent = '正在初始化獎品資料...';
-                        const newPrizes = {};
-                        excelPrizes.forEach(p => {
-                            const key = prizesRef.push().key;
-                            newPrizes[key] = { name: p.name, total: p.total, remain: p.remain };
-                        });
-                        prizesRef.set(newPrizes).then(() => {
+                        if (needUpdate) {
+                            statusEl.textContent = '正在初始化獎品資料...';
+                            writePrizesToDB(excelPrizes);
+                        } else {
                             statusEl.textContent = '系統已就緒，歡迎抽獎！';
-                            resetToInitialState(); // 初始化按鈕狀態
-                        });
-                    } else {
-                        statusEl.textContent = '系統已就緒，歡迎抽獎！';
-                        resetToInitialState(); // 初始化按鈕狀態
-                    }
-                });
+                            resetToInitialState();
+                        }
+                    });
+                }
             })
             .catch(err => {
                 statusEl.textContent = '錯誤：' + err.message;
                 console.error(err);
             });
-    };
+    }
+
+    // 將獎品寫入資料庫（共用）
+    function writePrizesToDB(excelPrizes) {
+        const newPrizes = {};
+        excelPrizes.forEach(p => {
+            const key = prizesRef.push().key;
+            newPrizes[key] = { name: p.name, total: p.total, remain: p.remain };
+        });
+        prizesRef.set(newPrizes).then(() => {
+            statusEl.textContent = '系統已就緒，歡迎抽獎！';
+            resetToInitialState();
+        });
+    }
 
     // 即時監聽獎品剩餘數量
     prizesRef.on('value', (snapshot) => {
@@ -207,9 +250,9 @@
         }
     }
 
-    // 回到初始抽獎畫面（清除結果與動畫）
+    // 回到初始抽獎畫面
     function resetToInitialState() {
-        resultEl.textContent = '';
+        resultEl.innerHTML = '';
         animationEl.innerHTML = '';
         updateButtonState();
     }
@@ -225,7 +268,7 @@
 
         setTimeout(() => {
             performDraw();
-        }, 2000); // 動畫持續 2 秒
+        }, 2000);
     }
 
     // 執行抽獎並顯示結果
@@ -243,10 +286,8 @@
             }
         }
 
-        // 更新資料庫
         db.ref('prizes/' + selected.id + '/remain').set(selected.remain - 1);
 
-        // 顯示中獎結果 + 回到抽獎畫面的按鈕
         animationEl.innerHTML = '';
         resultEl.innerHTML = `
             <div>🎉 恭喜抽中：<br><strong style="font-size:42px;">${selected.name}</strong> 🎉</div>
@@ -255,6 +296,15 @@
             </button>
         `;
     }
+
+    // === 新增：右上角重置按鈕功能 ===
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為 xlsx 中的初始值嗎？\n這會清除目前所有抽獎進度！')) {
+            statusEl.textContent = '正在強制重置獎品資料...';
+            loadAndInitPrizes(true); // forceReset = true
+            alert('獎品已成功重置！所有參與者重新整理頁面後即生效。');
+        }
+    });
 </script>
 </body>
 </html>
