@@ -96,8 +96,8 @@
 </style>
 </head>
 <body>
-    <h1>好禮即時抽</h1>
-
+    <h1>好禮即時抽！</h1>
+<!-- TODO: 改renew button 樣式 -->
     <!-- 右上角管理員重置按鈕 -->
     <button id="resetBtn" title="管理員專用：重置獎品數量">🔄</button>
 
@@ -120,13 +120,13 @@
 
 <script>
     const firebaseConfig = {
-      apiKey: "你的 apiKey",
-      authDomain: "amc-lottery.firebaseapp.com",
-      databaseURL: "https://amc-lottery-default-rtdb.firebaseio.com",
-      projectId: "amc-lottery",
-      storageBucket: "amc-lottery.appspot.com",
-      messagingSenderId: "你的 messagingSenderId",
-      appId: "你的 appId"
+        apiKey: "AIzaSyD7FUyMpktNug1cBDL7Ea_flnkx0MfB4zc",
+        authDomain: "amc-lottery.firebaseapp.com",
+        projectId: "amc-lottery",
+        storageBucket: "amc-lottery.firebasestorage.app",
+        messagingSenderId: "845041629032",
+        appId: "1:845041629032:web:aa953f10727759475f48dd",
+        measurementId: "G-X6L8K2X0KP"
     };
 
     firebase.initializeApp(firebaseConfig);
@@ -304,10 +304,10 @@
 
     // 右上角重置按鈕功能
     document.getElementById('resetBtn').addEventListener('click', () => {
-        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為 gifts.xlsx 中的初始值嗎？\n這會清除目前所有抽獎進度！')) {
+        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為初始值嗎？\n此操作會清除目前所有抽獎進度。')) {
             statusEl.textContent = '正在強制重置獎品資料...';
             loadAndInitPrizes(true);
-            alert('獎品已成功重置！所有參與者重新整理頁面後即生效。');
+            alert('獎品已成功重置！重新整理頁面後即生效。');
         }
     });
 </script>
