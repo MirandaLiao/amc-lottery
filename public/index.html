@@ -80,7 +80,7 @@
         width: 50px;
         height: 50px;
         /* background: #e74c3c; */
-        color: white;
+        color: black;
         border: none;
         border-radius: 50%;
         font-size: 24px;
@@ -94,12 +94,15 @@
         transform: scale(1.1);
     }
 </style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
     <h1>好禮即時抽！</h1>
 <!-- TODO: 改renew button 樣式 -->
     <!-- 右上角管理員重置按鈕 -->
-    <button id="resetBtn" title="管理員專用：重置獎品數量">🔄</button>
+    <button id="resetBtn" title="管理員專用：重置獎品數量">
+        <i class="fa fa-refresh" aria-hidden="true"></i>
+    </button>
 
     <div class="section">
         <!-- 主抽獎按鈕（初始顯示，抽中後隱藏） -->
