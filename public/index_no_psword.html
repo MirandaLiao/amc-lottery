@@ -51,6 +51,7 @@
         color: #27ae60;
         margin: 40px 0;
     }
+    /* 抽獎動畫 */
     .spinner {
         display: inline-block;
         width: 60px;
@@ -78,8 +79,8 @@
         right: 20px;
         width: 50px;
         height: 50px;
+        /* background: #e74c3c; */
         color: black;
-        background: rgba(255,255,255,0.8);
         border: none;
         border-radius: 50%;
         font-size: 24px;
@@ -89,91 +90,35 @@
         transition: all 0.3s;
     }
     #resetBtn:hover {
+        /* background: #c0392b; */
         transform: scale(1.1);
-        background: white;
-    }
-
-    /* 自訂密碼輸入視窗 */
-    #passwordModal {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.7);
-        z-index: 2000;
-        justify-content: center;
-        align-items: center;
-    }
-    .modal-content {
-        background: white;
-        padding: 30px;
-        border-radius: 15px;
-        width: 90%;
-        max-width: 400px;
-        text-align: center;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    }
-    .modal-content h3 {
-        margin: 0 0 20px 0;
-        color: #2c3e50;
-    }
-    #passwordInput {
-        width: 100%;
-        padding: 12px;
-        font-size: 18px;
-        border: 2px solid #ddd;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        text-align: center;
-    }
-    .modal-buttons button {
-        padding: 10px 20px;
-        margin: 0 10px;
-        font-size: 16px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-    }
-    #confirmPwdBtn {
-        background: #27ae60;
-        color: white;
-    }
-    #cancelPwdBtn {
-        background: #95a5a6;
-        color: white;
     }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
     <h1>好禮即時抽！</h1>
-
+<!-- TODO: 改renew button 樣式 -->
     <!-- 右上角管理員重置按鈕 -->
     <button id="resetBtn" title="管理員專用：重置獎品數量">
-        <i class="fas fa-sync-alt"></i>
+        <i class="fa fa-refresh" aria-hidden="true"></i>
     </button>
 
     <div class="section">
+        <!-- 主抽獎按鈕（初始顯示，抽中後隱藏） -->
         <button id="drawBtn" onclick="startDraw()">開始抽獎！</button>
+
+        <!-- 抽獎過程與結果顯示區 -->
         <div id="animation"></div>
         <div id="result"></div>
         <div id="status">系統載入中...</div>
     </div>
 
-    <!-- 自訂密碼輸入視窗 -->
-    <div id="passwordModal">
-        <div class="modal-content">
-            <h3>請輸入管理員密碼</h3>
-            <input type="password" id="passwordInput" placeholder="輸入密碼" />
-            <div class="modal-buttons">
-                <button id="confirmPwdBtn">確認</button>
-                <button id="cancelPwdBtn">取消</button>
-            </div>
-        </div>
-    </div>
-
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<!-- SheetJS for Excel reading -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
@@ -197,10 +142,11 @@
     const animationEl = document.getElementById('animation');
     const resultEl = document.getElementById('result');
 
-    // === 管理員密碼 ===
-    const ADMIN_PASSWORD = "1234";
+    // 頁面載入時自動讀取 gifts.xlsx 並初始化資料庫
+    window.onload = function() {
+        loadAndInitPrizes();
+    };
 
-    // 自動選擇 Excel 檔案
     function getExcelFilename() {
         const today = new Date();
         const startDate = new Date('2026-01-17'); // 你的活動第一天
@@ -208,16 +154,17 @@
         const diffDays = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) {
-            return 'gifts_test.xlsx';        // 活動前測試用
-        } else if (diffDays === 0) {
-            return 'gifts_first.xlsx';       // 第一天
-        } else if (diffDays === 1) {
-            return 'gifts_second.xlsx';      // 第二天
-        } else {
+            // 活動尚未開始 → 強制使用第一天檔案（方便測試）
             return 'gifts_test.xlsx';
+        } else if (diffDays === 0) {
+            return 'gifts_first.xlsx';         // 第一天
+        } else if (diffDays === 1) {
+            return 'gifts_second.xlsx';     // 第二天
+        } else {
+            return 'gifts_test.xlsx';   // 可選：第三天之後
         }
     }
-
+    // 共用函數：讀取 xlsx 並根據需要初始化/重置資料庫
     function loadAndInitPrizes(forceReset = false) {
         const filename = getExcelFilename();
         statusEl.textContent = `正在載入 ${filename} ...`;
@@ -241,7 +188,7 @@
                     }));
 
                 if (excelPrizes.length === 0) {
-                    statusEl.textContent = '錯誤：Excel 中沒有有效獎品資料';
+                    statusEl.textContent = '錯誤：gifts.xlsx 中沒有有效獎品資料';
                     return;
                 }
 
@@ -282,6 +229,7 @@
             });
     }
 
+    // 將獎品寫入資料庫
     function writePrizesToDB(excelPrizes) {
         const newPrizes = {};
         excelPrizes.forEach(p => {
@@ -294,6 +242,7 @@
         });
     }
 
+    // 即時監聽獎品剩餘數量
     prizesRef.on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -306,14 +255,17 @@
         } else {
             prizes = [];
         }
+        // 只在初始狀態時更新按鈕（結果頁面不顯示主按鈕）
         if (resultEl.innerHTML === '' && animationEl.innerHTML === '') {
             updateButtonState();
         }
     });
 
+    // 更新主抽獎按鈕狀態（僅在初始畫面時呼叫）
     function updateButtonState() {
         const canDraw = prizes.some(p => p.remain > 0);
-        drawBtn.style.display = 'block';
+
+        drawBtn.style.display = 'block'; // 確保顯示
 
         if (canDraw) {
             drawBtn.textContent = '開始抽獎！';
@@ -326,16 +278,19 @@
         }
     }
 
+    // 回到初始抽獎畫面
     function resetToInitialState() {
         resultEl.innerHTML = '';
         animationEl.innerHTML = '';
-        updateButtonState();
+        updateButtonState(); // 重新顯示並更新主按鈕
     }
 
+    // 開始抽獎
     function startDraw() {
         if (prizes.filter(p => p.remain > 0).length === 0) return;
 
-        drawBtn.style.display = 'none';
+        drawBtn.style.display = 'none'; // 隱藏主按鈕
+        drawBtn.textContent = '抽獎中…';
         resultEl.textContent = '';
         animationEl.innerHTML = '<div class="spinner"></div>';
 
@@ -344,6 +299,7 @@
         }, 2000);
     }
 
+    // 執行抽獎並顯示結果（此時主按鈕已隱藏）
     function performDraw() {
         const available = prizes.filter(p => p.remain > 0);
         const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
@@ -369,45 +325,14 @@
         `;
     }
 
-    // === 重置按鈕 + 密碼驗證 ===
-    const modal = document.getElementById('passwordModal');
-    const pwdInput = document.getElementById('passwordInput');
-
+    // 右上角重置按鈕功能
     document.getElementById('resetBtn').addEventListener('click', () => {
-        modal.style.display = 'flex';
-        pwdInput.value = '';
-        pwdInput.focus();
-    });
-
-    document.getElementById('cancelPwdBtn').addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
-
-    document.getElementById('confirmPwdBtn').addEventListener('click', () => {
-        if (pwdInput.value === ADMIN_PASSWORD) {
-            modal.style.display = 'none';
-            if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為當前 Excel 檔案的初始值嗎？\n這會清除目前所有抽獎進度！')) {
-                statusEl.textContent = '正在強制重置獎品資料...';
-                loadAndInitPrizes(true);
-                alert('獎品已成功重置！所有參與者重新整理頁面後即生效。');
-            }
-        } else {
-            alert('密碼錯誤！');
-            pwdInput.value = '';
-            pwdInput.focus();
+        if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為初始值嗎？\n此操作會清除目前所有抽獎進度。')) {
+            statusEl.textContent = '正在強制重置獎品資料...';
+            loadAndInitPrizes(true);
+            alert('獎品已成功重置！重新整理頁面後即生效。');
         }
     });
-
-    // 支援 Enter 鍵確認
-    pwdInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            document.getElementById('confirmPwdBtn').click();
-        }
-    });
-
-    window.onload = function() {
-        loadAndInitPrizes();
-    };
 </script>
 </body>
 </html>
