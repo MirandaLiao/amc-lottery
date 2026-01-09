@@ -203,7 +203,7 @@
     // 自動選擇 Excel 檔案
     function getExcelFilename() {
         const today = new Date();
-        const startDate = new Date('2026-01-17'); // 你的活動第一天
+        const startDate = new Date('2026-01-09'); // 活動"第一天" 日期
 
         const diffDays = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
 
@@ -386,7 +386,7 @@
     document.getElementById('confirmPwdBtn').addEventListener('click', () => {
         if (pwdInput.value === ADMIN_PASSWORD) {
             modal.style.display = 'none';
-            if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為當前 Excel 檔案的初始值嗎？\n這會清除目前所有抽獎進度！')) {
+            if (confirm('⚠️ 管理員操作 ⚠️\n\n確定要強制重置所有獎品數量為初始值嗎？\n此操作會清除目前所有抽獎進度！')) {
                 statusEl.textContent = '正在強制重置獎品資料...';
                 loadAndInitPrizes(true);
                 alert('獎品已成功重置！所有參與者重新整理頁面後即生效。');
