@@ -51,6 +51,16 @@
         color: #27ae60;
         margin: 40px 0;
     }
+    /* 中獎圖片樣式 */
+    #prizeImage {
+        max-width: 70%;
+        max-height: 380px; /* 關鍵：固定最大高度，留空間給文字與按鈕 */
+        height: auto;
+        margin: 30px auto;
+        border-radius: 15px;
+        /* box-shadow: 0 8px 20px rgba(0,0,0,0.2); */
+        display: block;
+    }
     .spinner {
         display: inline-block;
         width: 60px;
@@ -198,21 +208,21 @@
     const resultEl = document.getElementById('result');
 
     // === 管理員密碼 ===
-    const ADMIN_PASSWORD = "1234";
+    const ADMIN_PASSWORD = "1234"; // ← 請改成你的密碼
 
     // 自動選擇 Excel 檔案
     function getExcelFilename() {
         const today = new Date();
-        const startDate = new Date('2026-01-09'); // 活動"第一天" 日期
+        const startDate = new Date('2026-01-09'); // 活動第一天
 
         const diffDays = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) {
-            return 'gifts_test.xlsx';        // 活動前測試用
+            return 'gifts_test.xlsx';
         } else if (diffDays === 0) {
-            return 'gifts_first_formal.xlsx';       // 第一天
+            return 'gifts_first_formal.xlsx';
         } else if (diffDays === 1) {
-            return 'gifts_second.xlsx';      // 第二天
+            return 'gifts_second_formal.xlsx';
         } else {
             return 'gifts_test.xlsx';
         }
@@ -344,30 +354,54 @@
         }, 2000);
     }
 
-    function performDraw() {
-        const available = prizes.filter(p => p.remain > 0);
-        const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
-        let random = Math.random() * totalRemain;
-        let selected;
+// 執行抽獎並顯示結果 + 圖片
+function performDraw() {
+    const available = prizes.filter(p => p.remain > 0);
+    const totalRemain = available.reduce((sum, p) => sum + p.remain, 0);
+    let random = Math.random() * totalRemain;
+    let selected;
 
-        for (const item of available) {
-            random -= item.remain;
-            if (random <= 0) {
-                selected = item;
-                break;
-            }
+    for (const item of available) {
+        random -= item.remain;
+        if (random <= 0) {
+            selected = item;
+            break;
         }
+    }
 
-        db.ref('prizes/' + selected.id + '/remain').set(selected.remain - 1);
+    db.ref('prizes/' + selected.id + '/remain').set(selected.remain - 1);
 
-        animationEl.innerHTML = '';
+    // 圖片路徑：使用原始名稱（含底線）
+    const imageUrl = `photos/${encodeURIComponent(selected.name)}.png`;
+
+    // 顯示名稱：將底線替換為空格
+    const displayName = selected.name.replace(/_/g, ' ');
+
+    // 預載圖片，確認存在才顯示
+    const img = new Image();
+    img.onload = function() {
+        // 圖片存在 → 顯示文字（空格版） + 圖片 + 按鈕
         resultEl.innerHTML = `
-            <div>🎉 恭喜抽中：<br><strong style="font-size:42px;">${selected.name}</strong> 🎉</div>
+            <div>🎉 恭喜抽中：<br><strong style="font-size:42px;">${displayName}</strong></div>
+            <img id="prizeImage" src="${imageUrl}" alt="${displayName}">
             <button onclick="resetToInitialState()" style="margin-top:30px; padding:15px 30px; font-size:24px; background:#27ae60; color:white; border:none; border-radius:10px; cursor:pointer;">
                 回到抽獎畫面
             </button>
         `;
-    }
+    };
+    img.onerror = function() {
+        // 圖片不存在 → 只顯示文字（空格版） + 按鈕
+        resultEl.innerHTML = `
+            <div>🎉 恭喜抽中：<br><strong style="font-size:42px;">${displayName}</strong></div>
+            <button onclick="resetToInitialState()" style="margin-top:30px; padding:15px 30px; font-size:24px; background:#27ae60; color:white; border:none; border-radius:10px; cursor:pointer;">
+                回到抽獎畫面
+            </button>
+        `;
+    };
+    img.src = imageUrl; // 觸發載入
+
+    animationEl.innerHTML = '';
+}
 
     // === 重置按鈕 + 密碼驗證 ===
     const modal = document.getElementById('passwordModal');
@@ -398,7 +432,6 @@
         }
     });
 
-    // 支援 Enter 鍵確認
     pwdInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             document.getElementById('confirmPwdBtn').click();
